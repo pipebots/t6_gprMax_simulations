@@ -1,5 +1,6 @@
 #python:
 
+import numpy as np
 import gprMax.input_cmd_funcs as gprmax_cmds
 
 gprmax_cmds.command("title", "{{ params.simulation_name }}")
@@ -125,7 +126,7 @@ pipe_refill_air = gprmax_cmds.triangle(
 
 air_above = gprmax_cmds.box(
     xs = 0,
-    ys = {{ params.domain_y - params.pml_y - params.air_depth }},
+    ys = {{ params.domain_y - (params.pml_y + params.air_depth) }},
     zs = 0,
     xf = {{ params.domain_x }},
     yf = {{ params.domain_y }},
@@ -171,10 +172,12 @@ obsv_rx_2 = gprmax_cmds.rx(
 gprmax_cmds.geometry_view(
     xs = 0,
     ys = 0,
-    zs = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+#    zs = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+    zs = 0,
     xf = {{ params.domain_x }},
     yf = {{ params.domain_y }},
-    zf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+#    zf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+    zf = {{ params.domain_z }},
     dx = {{ params.delta_d }},
     dy = {{ params.delta_d }},
     dz = {{ params.delta_d }},
@@ -188,10 +191,12 @@ for number in range({{ params.snapshots_count }}):
     gprmax_cmds.snapshot(
         xs = 0,
         ys = 0,
-        zs = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+#        ys = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+        zs = 0,
         xf = {{ params.domain_x }},
         yf = {{ params.domain_y }},
-        zf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+#        yf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+        zf = {{ params.domain_z }},
         dx = {{ params.delta_d }},
         dy = {{ params.delta_d }},
         dz = {{ params.delta_d }},

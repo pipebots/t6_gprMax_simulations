@@ -22,7 +22,7 @@ filename_base = 'straight_pipe'
 
 geometry_mode = '2D'
 output_geometry = True
-output_snapshots = True
+output_snapshots = False
 snapshots_count = 4
 
 fund_freq = 2.45e9
@@ -46,7 +46,7 @@ soil_depth = 0.5
 air_depth = 0.5
 
 # * Partially filled pipe parameters
-include_water = False
+include_water = True
 fill_level = 0.5  # As a ratio, i.e. 0 - 1
 
 # * Tx and Rx parameters
@@ -323,10 +323,12 @@ if output_geometry:
     gprmax_cmds.geometry_view(
         0,
         0,
-        pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+#        pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+        0,
         domain_x,
         domain_y,
-        pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+#        pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+        domain_z,
         delta_d, delta_d, delta_d,
         geometry_filename, 'n'
     )
@@ -336,10 +338,12 @@ if output_snapshots:
         gprmax_cmds.snapshot(
             0,
             0,
-            pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+#            pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+            0,
             domain_x,
             domain_y,
-            pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+#            pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+            domain_z,
             delta_d, delta_d, delta_d,
             ((number + 1) * (simulation_runtime / snapshots_count)),
             "_".join([snapshot_filename, str(number)])
