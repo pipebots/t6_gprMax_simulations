@@ -323,12 +323,10 @@ if output_geometry:
     gprmax_cmds.geometry_view(
         0,
         0,
-#        pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
-        0,
+        pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
         domain_x,
         domain_y,
-#        pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
-        domain_z,
+        pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
         delta_d, delta_d, delta_d,
         geometry_filename, 'n'
     )
@@ -338,15 +336,13 @@ if output_snapshots:
         gprmax_cmds.snapshot(
             0,
             0,
-#            pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
-            0,
+            pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
             domain_x,
             domain_y,
-#            pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
-            domain_z,
+            pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
             delta_d, delta_d, delta_d,
             ((number + 1) * (simulation_runtime / snapshots_count)),
-            snapshot_filename + str(number)
+            "_".join([snapshot_filename, str(number)])
         )
 
 #end_python:
