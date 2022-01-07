@@ -1,0 +1,204 @@
+#python:
+
+import gprMax.input_cmd_funcs as gprmax_cmds
+
+gprmax_cmds.command("title", "{{ simulation_name }}")
+gprmax_cmds.command("pml_cells", "{{ pml_command }}")
+
+gprmax_cmds.domain(
+    x = {{ domain_x }},
+    y = {{ domain_y }},
+    z = {{ domain_z }}
+)
+
+gprmax_cmds.dx_dy_dz(
+    x = {{ delta_d }},
+    y = {{ delta_d }},
+    z = {{ delta_d }}
+)
+
+gprmax_cmds.time_window({{ simulation_runtime }})
+
+gprmax_cmds.material(
+    permittivity = {{ pipe_material_er }},
+    conductivity = {{ pipe_material_conductivity }},
+    permeability = 1,
+    magconductivity = 0,
+    name = 'pipe_material'
+)
+
+gprmax_cmds.material(
+    permittivity = {{ soil_er }},
+    conductivity= {{ soil_conductivity }},
+    permeability = 1,
+    magconductivity = 0,
+    name = 'soil_material'
+)
+
+{% if include_water %}
+gprmax_cmds.material(
+    permittivity = {{ sw_er }},
+    conductivity = {{ sw_conductivity }},
+    permeability = 1,
+    magconductivity = 0,
+    name = 'water_fill'
+)
+{% endif %}
+
+soil = gprmax_cmds.box(
+    xs = 0,
+    ys = 0,
+    zs = 0,
+    xf = {{ domain_x }},
+    yf = {{ domain_y }},
+    zf = {{ domain_z }},
+    material = 'soil_material',
+    averaging = 'y'
+)
+
+pipe_shell = gprmax_cmds.cylinder(
+    x1 = {{ pipe_start.x }},
+    y1 = {{ pipe_start.y }},
+    z1 = {{ pipe_start.z }},
+    x2 = {{ pipe_end.x }},
+    y2 = {{ pipe_end.y }},
+    z2 = {{ pipe_end.z }},
+    radius = {{ pipe_diameter / 2 + pipe_wall_thickness }},
+    material = 'pipe_material',
+    averaging = 'y'
+)
+
+pipe_inside = gprmax_cmds.cylinder(
+    x1 = {{ pipe_start.x }},
+    y1 = {{ pipe_start.y }},
+    z1 = {{ pipe_start.z }},
+    x2 = {{ pipe_end.x }},
+    y2 = {{ pipe_end.y }},
+    z2 = {{ pipe_end.z }},
+    radius = {{ pipe_diameter / 2 }},
+    material = 'free_space',
+    averaging = 'y'
+)
+
+{% if include_water and geometry_mode == '2D' %}
+pipe_water_fill = gprmax_cmds.box(
+    xs = {{ pipe_start.x }},
+    ys = {{ pipe_start.y - pipe_diameter / 2 }},
+    zs = 0,
+    xf = {{ pipe_end.x }},
+    yf = {{ pipe_end.y - pipe_diameter / 2 + fill_depth }},
+    zf = {{ delta_d }},
+    material = 'water_fill',
+    averaging = 'y'
+)
+{% endif %}
+
+{% if include_water and geometry_mode == '3D' %}
+gprmax_cmds.cylindrical_sector(
+    axis = 'x',
+    ctr1 = {{ pipe_start.y }},
+    ctr2 = {{ pipe_start.z }},
+    t1 = {{ pipe_start.x }},
+    t2 = {{ pipe_end.x }},
+    radius = {{ pipe_diameter / 2 }},
+    startingangle = {{ 180 - central_angle_deg / 2 }},
+    sweptangle = {{ central_angle_deg }},
+    material = 'water_fill',
+    averaging = 'y'
+)
+
+
+pipe_refill_air = gprmax_cmds.triangle(
+    x1 = {{ pipe_start.x }},
+    y1 = {{ pipe_start.y }},
+    z1 = {{ pipe_start.z }},
+    x2 = {{ pipe_start.x }},
+    y2 = {{ pipe_start.y - pipe_diameter / 2 * np.cos(central_angle / 2) }},
+    z2 = {{ pipe_start.z - pipe_diameter / 2 * np.sin(central_angle / 2) }},
+    x3 = {{ pipe_start.x }},
+    y3 = {{ pipe_start.y - pipe_diameter / 2 * np.cos(central_angle / 2) }},
+    z3 = {{ pipe_start.z + pipe_diameter / 2 * np.sin(central_angle / 2) }},
+    thickness = {{ domain_x }},
+    material = 'free_space',
+    averaging = 'y'
+)
+{% endif %}
+
+air_above = gprmax_cmds.box(
+    xs = 0,
+    ys = {{ domain_y - (pml_y + air_depth) }},
+    zs = 0,
+    xf = {{ domain_x }},
+    yf = {{ domain_y }},
+    zf = {{ domain_z }},
+    material = 'free_space',
+    averaging = 'y'
+)
+
+pulse_excitation = gprmax_cmds.waveform(
+    shape = {{ waveform_type }},
+    amplitude = {{ waveform_amplitude }},
+    frequency = {{ fund_freq }},
+    identifier = {{ waveform_identifier }}
+)
+
+transmitter = gprmax_cmds.hertzian_dipole(
+    polarisation = {{ dipole_polarisation }},
+    f1 = {{ transmitter_position.x }},
+    f2 = {{ transmitter_position.y }},
+    f3 = {{ transmitter_position.z }},
+    identifier = {{ pulse_excitation }}
+)
+
+receiver = gprmax_cmds.rx(
+    x = {{ receiver_position.x }},
+    y = {{ receiver_position.y }},
+    z = {{ receiver_position.z }}
+)
+
+obsv_rx_1 = gprmax_cmds.rx(
+    x = {{ observer_rx_1.x }},
+    y = {{ observer_rx_1.y }},
+    z = {{ observer_rx_1.z }}
+)
+
+obsv_rx_2 = gprmax_cmds.rx(
+    x = {{ observer_rx_2.x }},
+    y = {{ observer_rx_2.y }},
+    z = {{ observer_rx_2.z }}
+)
+
+{% if output_geometry %}
+gprmax_cmds.geometry_view(
+    xs = 0,
+    ys = 0,
+    zs = {{ pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25) }},
+    xf = {{ domain_x }},
+    yf = {{ domain_y }},
+    zf = {{ pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25) }},
+    dx = {{ delta_d }},
+    dy = {{ delta_d }},
+    dz = {{ delta_d }},
+    filename = {{ geometry_filename }},
+    type = 'n'
+)
+{% endif %}
+
+{% if output_snapshots %}
+for number in range({{ snapshots_count }}):
+    gprmax_cmds.snapshot(
+        xs = 0,
+        ys = 0,
+        zs = {{ pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25) }},
+        xf = {{ domain_x }},
+        yf = {{ domain_y }},
+        zf = {{ pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25) }},
+        dx = {{ delta_d }},
+        dy = {{ delta_d }},
+        dz = {{ delta_d }},
+        time = ((number + 1) * ( {{ simulation_runtime }} / {{ snapshots_count }} ) ),
+        filename = {{ snapshot_filename }} + str(number)
+    )
+{% endif %}
+
+#end_python
