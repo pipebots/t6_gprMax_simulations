@@ -1,5 +1,6 @@
 from collections import namedtuple
 from itertools import product
+from pathlib import Path
 
 import yaml
 import numpy as np
@@ -28,6 +29,8 @@ jinja2_env = Environment(
 )
 
 jinja2_template = jinja2_env.get_template('straight_pipe_soil_vertical.j2')
+
+output_folder_name = "scenarios_empty"
 
 # ! Simulation model parameters - constant across all scenarios
 
@@ -71,21 +74,25 @@ dipole_polarisation = 'z'
 
 # ! Simulation model parameters end
 
+# * Set up output folder
+output_folder = Path.cwd() / output_folder_name
+output_folder.mkdir(exist_ok=True)
+
 for params in all_params_values:
-    fund_freq, pipe_diameter, pipe_length, \
-    pipe_burial_depth, soil_name, \
-    soil_water_content = params
+    (fund_freq, pipe_diameter, pipe_length,
+     pipe_burial_depth, soil_name,
+     soil_water_content) = params
 
     # * Frequency-derived parameters
     fund_freq_GHz = fund_freq / 1e9
     fund_wavelength = speed_of_light / fund_freq
 
     # * Filenames
-    geometry_filename = '_'.join(
-        [filename_base, str(fund_freq_GHz), str(pipe_diameter),
-         str(pipe_length), str(pipe_burial_depth), soil_name,
-         str(soil_water_content)]
-    )
+    geometry_filename = '_'.join([
+        filename_base, str(fund_freq_GHz), str(pipe_diameter),
+        str(pipe_length), str(pipe_burial_depth), soil_name,
+        str(soil_water_content)
+    ])
     snapshot_filename = '_'.join([geometry_filename, 'snapshot'])
     simulation_filename = ".".join([geometry_filename, 'py'])
 
@@ -107,20 +114,18 @@ for params in all_params_values:
         0.5,
         soil_water_content
     )
-    soil_conductivity = \
-    rflib.dielectrics.imaginary_permittivity_to_conductivity(
+    soil_cond = rflib.dielectrics.imaginary_permittivity_to_conductivity(
         fund_freq_GHz, np.abs(soil_complex_er.imag)
     )
-    soil_er = soil_complex_er.real
+    soil_er = np.real(soil_complex_er)
 
     # * Partially filled pipe preliminary calculations, if used
     if include_water:
         sw_complex_er = p527.salt_water_permittivity(fund_freq_GHz, soil_temp)
-        sw_conductivity = \
-        rflib.dielectrics.imaginary_permittivity_to_conductivity(
+        sw_cond = rflib.dielectrics.imaginary_permittivity_to_conductivity(
             fund_freq_GHz, np.abs(sw_complex_er.imag)
         )
-        sw_er = sw_complex_er.real
+        sw_er = np.real(sw_complex_er)
 
         fill_depth = pipe_diameter * fill_level
         chord_length = np.sqrt(
@@ -202,9 +207,12 @@ for params in all_params_values:
         )
 
     # * Calculate Hertzian dipole current from required power
-    waveform_amplitude = rflib.antennas.hertzian_dipole_current(
-        fund_freq_GHz, tx_power, delta_d
-    )
+#    waveform_amplitude = rflib.antennas.hertzian_dipole_current(
+#        fund_freq_GHz, tx_power, delta_d
+#    )
+
+    # ! Use a fixed amplitude of 1 for all simulations
+    waveform_amplitude = 1.0
 
     transmitter_position = Point(
         pipe_start.x + (pml_x + tx_offset.x),
@@ -214,19 +222,21 @@ for params in all_params_values:
 
     receiver_position = Point(
         pipe_end.x - (pml_x + rx_offset.x),
-        pipe_end.y + rx_offset.y,
+        pipe_end.y + rx_offset.y + fill_depth / 2.0,
         pipe_end.z + rx_offset.z
     )
 
     observer_rx_1 = Point(
-        transmitter_position.x,
-        domain_y - (pml_y + air_depth / 2),
-        transmitter_position.z
+        transmitter_position.x +
+        ((receiver_position.x - transmitter_position.x) / 3.0),
+        receiver_position.y,
+        receiver_position.z
     )
 
     observer_rx_2 = Point(
-        receiver_position.x,
-        domain_y - (pml_y + air_depth / 2),
+        transmitter_position.x +
+        2 * ((receiver_position.x - transmitter_position.x) / 3.0),
+        receiver_position.y,
         receiver_position.z
     )
 
@@ -254,7 +264,7 @@ for params in all_params_values:
         'pipe_material_er': pipe_material_er,
         'pipe_material_conductivity': pipe_material_conductivity,
         'soil_er': soil_er,
-        'soil_conductivity': soil_conductivity,
+        'soil_conductivity': soil_cond,
 
         'pipe_start': pipe_start._asdict(),
         'pipe_end': pipe_end._asdict(),
@@ -280,7 +290,7 @@ for params in all_params_values:
         sim_params.update(
             {
                 'sw_er': sw_er,
-                'sw_conductivity': sw_conductivity,
+                'sw_conductivity': sw_cond,
                 'fill_depth': fill_depth,
                 'central_angle_deg': central_angle_deg,
                 'central_angle': central_angle,
@@ -288,5 +298,8 @@ for params in all_params_values:
         )
 
     template_output = jinja2_template.render(params=sim_params)
-    with open(simulation_filename, 'w') as out_file:
+
+    simulation_file = output_folder / simulation_filename
+
+    with simulation_file.open(mode='w') as out_file:
         out_file.write(template_output)

@@ -171,12 +171,10 @@ obsv_rx_2 = gprmax_cmds.rx(
 {% if params.output_geometry %}
 gprmax_cmds.geometry_view(
     xs = 0,
-    ys = 0,
-#    zs = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+    ys = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
     zs = 0,
     xf = {{ params.domain_x }},
-    yf = {{ params.domain_y }},
-#    zf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+    yf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
     zf = {{ params.domain_z }},
     dx = {{ params.delta_d }},
     dy = {{ params.delta_d }},
@@ -190,12 +188,10 @@ gprmax_cmds.geometry_view(
 for number in range({{ params.snapshots_count }}):
     gprmax_cmds.snapshot(
         xs = 0,
-        ys = 0,
-#        ys = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+        ys = {{ params.pipe_start.y - (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
         zs = 0,
         xf = {{ params.domain_x }},
-        yf = {{ params.domain_y }},
-#        yf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
+        yf = {{ params.pipe_start.y + (params.pipe_diameter / 2 + params.pipe_wall_thickness + 0.25) }},
         zf = {{ params.domain_z }},
         dx = {{ params.delta_d }},
         dy = {{ params.delta_d }},

@@ -23,7 +23,7 @@ filename_base = 'straight_pipe'
 geometry_mode = '2D'
 output_geometry = True
 output_snapshots = False
-snapshots_count = 4
+snapshots_count = 16
 
 fund_freq = 2.45e9
 max_harmonic = 5
@@ -33,33 +33,24 @@ pml_cells_number = 20
 # * Pipe dimensions and properties, in base units
 pipe_material = 'concrete'
 pipe_diameter = 225e-3
-pipe_wall_thickness = 35e-3
-pipe_length = 1.5
-pipe_burial_depth = 0.8
+pipe_wall_thickness = 60e-3
+pipe_burial_depth = 1.0
 
 # * Soil dimensions and properties, in base units
-soil_name = 'sand'
-soil_temp = 15.0
+soil_name = 'sandy_clay_loam'
+soil_temp = 10.0
 soil_water_content = 1e-15
-soil_depth = 0.5
+soil_depth = 1.0
 
 air_depth = 0.5
 
-# * Partially filled pipe parameters
-include_water = True
-fill_level = 0.5  # As a ratio, i.e. 0 - 1
-
 # * Tx and Rx parameters
-# * The X, Y, and Z offsets are from the centre points of the end
-# * faces of the cylinder representing the pipe. They do not include the PML
+# * The X, Y, and Z offsets are from the centre point of the end
+# * faces of the circle representing the pipe. They do not include the PML
 # * cells distance in them, this is taken care of later in the script.
-
-# ! Right now the offset is essentially a constant, and is not affected by the
-# ! fill level of the pipe. This might change later to keep it at the middle
-# ! of the air gap above the water level.
 tx_power = 10.0
-tx_offset = Point(10e-2, 0, 0)
-rx_offset = Point(10e-2, 0, 0)
+tx_offset = Point(0, 0, 0)
+rx_offset = Point(0, 0, 0)
 
 waveform_type = 'contsine'
 waveform_identifier = 'tx_1'
@@ -74,8 +65,7 @@ fund_wavelength = speed_of_light / fund_freq
 # * Filenames
 geometry_filename = '_'.join([
     filename_base, str(fund_freq_GHz), str(pipe_diameter),
-    str(pipe_length), str(pipe_burial_depth), soil_name,
-    str(soil_water_content)
+    str(pipe_burial_depth), soil_name, str(soil_water_content)
 ])
 snapshot_filename = '_'.join([geometry_filename, 'snapshot_'])
 
@@ -92,9 +82,9 @@ soil_constituents = p527.SOILS[soil_name]
 soil_complex_er = p527.soil_permittivity(
     fund_freq_GHz,
     soil_temp,
-    99.0,
-    0.5,
-    0.5,
+    soil_constituents.p_sand,
+    soil_constituents.p_clay,
+    soil_constituents.p_silt,
     soil_water_content
 )
 soil_conductivity = rflib.dielectrics.imaginary_permittivity_to_conductivity(
@@ -102,29 +92,8 @@ soil_conductivity = rflib.dielectrics.imaginary_permittivity_to_conductivity(
 )
 soil_er = np.real(soil_complex_er)
 
-# * Partially filled pipe preliminary calculations, if used
-if include_water:
-    sw_complex_er = p527.salt_water_permittivity(fund_freq_GHz, soil_temp)
-    sw_conductivity = rflib.dielectrics.imaginary_permittivity_to_conductivity(
-        fund_freq_GHz, np.abs(sw_complex_er.imag)
-    )
-    sw_er = np.real(sw_complex_er)
-
-    fill_depth = pipe_diameter * fill_level
-    chord_length = np.sqrt(
-        8 * (pipe_diameter / 2) * fill_depth - 4 * np.power(fill_depth, 2)
-    )
-    central_angle = 2 * np.arcsin(chord_length / pipe_diameter)
-    central_angle_deg = np.rad2deg(central_angle)
-else:
-    fill_depth = 0
-
 # * Some preliminary calculations
-if include_water:
-    er_max = np.max([pipe_material_er, soil_er, sw_er])
-else:
-    er_max = np.max([pipe_material_er, soil_er])
-
+er_max = np.max([pipe_material_er, soil_er])
 lambda_min = speed_of_light / (max_harmonic * fund_freq)
 lambda_min_eff = lambda_min / np.sqrt(er_max)
 
@@ -149,14 +118,14 @@ if geometry_mode == '2D':
 elif geometry_mode == '3D':
     pml_z = pml_cells_number * delta_d
 
-model_x = pipe_length
-model_y = pipe_diameter + 2 * pipe_wall_thickness + soil_depth + \
-          pipe_burial_depth + air_depth
+model_x = pipe_diameter + 2 * pipe_wall_thickness + 2 * soil_depth
+model_y = pipe_diameter + 2 * pipe_wall_thickness + soil_depth + air_depth + \
+          pipe_burial_depth
 
 if geometry_mode == '2D':
     model_z = delta_d
 elif geometry_mode == '3D':
-    model_z = pipe_diameter + 2 * pipe_wall_thickness + 2 * soil_depth
+    model_z = 2 * soil_depth
 
 domain_x = model_x + 2 * pml_x
 domain_y = model_y + 2 * pml_y
@@ -165,28 +134,11 @@ domain_z = model_z + 2 * pml_z
 longest_dimension = np.max([domain_x, domain_y, domain_z])
 simulation_runtime = runtime_multiplier * (longest_dimension / speed_of_light)
 
-if geometry_mode == '2D':
-    pipe_start = Point(
-        0,
-        pml_y + soil_depth + pipe_wall_thickness + pipe_diameter / 2,
-        0
-    )
-    pipe_end = Point(
-        domain_x,
-        pml_y + soil_depth + pipe_wall_thickness + pipe_diameter / 2,
-        0
-    )
-elif geometry_mode == '3D':
-    pipe_start = Point(
-        0,
-        pml_y + soil_depth + pipe_wall_thickness + pipe_diameter / 2,
-        domain_z / 2
-    )
-    pipe_end = Point(
-        domain_x,
-        pml_y + soil_depth + pipe_wall_thickness + pipe_diameter / 2,
-        domain_z / 2
-    )
+pipe_centre = Point(
+    domain_x / 2,
+    pml_y + soil_depth + pipe_wall_thickness + pipe_diameter / 2,
+    0
+)
 
 # * Calculate Hertzian dipole current from required power
 waveform_amplitude = rflib.antennas.hertzian_dipole_current(
@@ -194,27 +146,16 @@ waveform_amplitude = rflib.antennas.hertzian_dipole_current(
 )
 
 transmitter_position = Point(
-    pipe_start.x + (pml_x + tx_offset.x),
-    pipe_start.y + tx_offset.y + fill_depth / 2.0,
-    pipe_start.z + tx_offset.z
+    pipe_centre.x + tx_offset.x,
+    pipe_centre.y + tx_offset.y,
+    domain_z / 2 + tx_offset.z
 )
 
 receiver_position = Point(
-    pipe_end.x - (pml_x + rx_offset.x),
-    pipe_end.y + rx_offset.y,
-    pipe_end.z + rx_offset.z
-)
-
-observer_rx_1 = Point(
-    transmitter_position.x,
-    domain_y - (pml_y + air_depth / 2),
-    transmitter_position.z
-)
-
-observer_rx_2 = Point(
-    receiver_position.x,
-    domain_y - (pml_y + air_depth / 2),
-    receiver_position.z
+    pipe_centre.x + rx_offset.x,
+    pipe_centre.y + rx_offset.y + pipe_diameter / 2 + pipe_wall_thickness +
+    pipe_burial_depth + air_depth * 0.75,
+    domain_z / 2 + rx_offset.z
 )
 
 # * gprMax simulation setup
@@ -243,71 +184,29 @@ gprmax_cmds.material(
     name='soil_material'
 )
 
-if include_water:
-    gprmax_cmds.material(
-        permittivity=sw_er,
-        conductivity=sw_conductivity,
-        permeability=1,
-        magconductivity=0,
-        name='water_fill'
-    )
-
 soil = gprmax_cmds.box(
     0, 0, 0,
     domain_x, domain_y, domain_z,
     'soil_material', 'y'
 )
 
+air_above = gprmax_cmds.box(
+    0, domain_y - (pml_y + air_depth), 0,
+    domain_x, domain_y, domain_z,
+    'free_space', 'y'
+)
+
 pipe_shell = gprmax_cmds.cylinder(
-    pipe_start.x, pipe_start.y, pipe_start.z,
-    pipe_end.x, pipe_end.y, pipe_end.z,
+    pipe_centre.x, pipe_centre.y, pipe_centre.z,
+    pipe_centre.x, pipe_centre.y, domain_z,
     pipe_diameter / 2 + pipe_wall_thickness,
     'pipe_material', 'y'
 )
 
 pipe_inside = gprmax_cmds.cylinder(
-    pipe_start.x, pipe_start.y, pipe_start.z,
-    pipe_end.x, pipe_end.y, pipe_end.z,
+    pipe_centre.x, pipe_centre.y, pipe_centre.z,
+    pipe_centre.x, pipe_centre.y, domain_z,
     pipe_diameter / 2,
-    'free_space', 'y'
-)
-
-if include_water and geometry_mode == '2D':
-    pipe_water_fill = gprmax_cmds.box(
-        pipe_start.x,
-        pipe_start.y - pipe_diameter / 2,
-        0,
-        pipe_end.x,
-        pipe_end.y - pipe_diameter / 2 + fill_depth,
-        delta_d,
-        'water_fill', 'y'
-    )
-
-if include_water and geometry_mode == '3D':
-    gprmax_cmds.cylindrical_sector(
-        'x',
-        pipe_start.y, pipe_start.z,
-        pipe_start.x, pipe_end.x,
-        pipe_diameter / 2,
-        180 - central_angle_deg / 2, central_angle_deg,
-        'water_fill', 'y'
-    )
-
-    pipe_refill_air = gprmax_cmds.triangle(
-        pipe_start.x, pipe_start.y, pipe_start.z,
-        pipe_start.x,
-        pipe_start.y - pipe_diameter / 2 * np.cos(central_angle / 2),
-        pipe_start.z - pipe_diameter / 2 * np.sin(central_angle / 2),
-        pipe_start.x,
-        pipe_start.y - pipe_diameter / 2 * np.cos(central_angle / 2),
-        pipe_start.z + pipe_diameter / 2 * np.sin(central_angle / 2),
-        domain_x,
-        'free_space', 'y'
-    )
-
-air_above = gprmax_cmds.box(
-    0, domain_y - (pml_y + air_depth), 0,
-    domain_x, domain_y, domain_z,
     'free_space', 'y'
 )
 
@@ -330,21 +229,13 @@ receiver = gprmax_cmds.rx(
     receiver_position.x, receiver_position.y, receiver_position.z
 )
 
-obsv_rx_1 = gprmax_cmds.rx(
-    observer_rx_1.x, observer_rx_1.y, observer_rx_1.z
-)
-
-obsv_rx_2 = gprmax_cmds.rx(
-    observer_rx_2.x, observer_rx_2.y, observer_rx_2.z
-)
-
 if output_geometry:
     gprmax_cmds.geometry_view(
         0,
-        pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+        0,
         0,
         domain_x,
-        pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+        domain_y,
         domain_z,
         delta_d, delta_d, delta_d,
         geometry_filename, 'n'
@@ -354,14 +245,14 @@ if output_snapshots:
     for number in range(snapshots_count):
         gprmax_cmds.snapshot(
             0,
-            pipe_start.y - (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+            0,
             0,
             domain_x,
-            pipe_start.y + (pipe_diameter / 2 + pipe_wall_thickness + 0.25),
+            domain_y,
             domain_z,
             delta_d, delta_d, delta_d,
             ((number + 1) * (simulation_runtime / snapshots_count)),
-            "_".join([snapshot_filename, str(number)])
+            "_".join([snapshot_filename + str(number)])
         )
 
 #end_python:

@@ -1,7 +1,7 @@
 import time
 import datetime
 import logging
-import pathlib
+from pathlib import Path
 
 import gprMax
 from gprMax.exceptions import GeneralError
@@ -62,18 +62,19 @@ global_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 gprmax_logger = setup_logger("gprMax_scenario_runner", global_timestamp)
 gprmax_logger.info("Starting gprMax simulations")
 
-scenarios_folder = pathlib.Path.cwd() / 'scenarios_empty'
+# ! Modify this if individual simulation files are elsewhere
+scenarios_folder = Path.cwd() / 'scenarios_empty'
 
 gprmax_logger.info("Processing %s", scenarios_folder)
 
-scenarios_files = list(scenarios_folder.glob(".py"))
+scenarios_files = list(scenarios_folder.glob("*.py"))
 
 gprmax_logger.info("Found %d files", len(scenarios_files))
 
 for scenario_file in scenarios_files:
     try:
         gprmax_logger.info("Running %s", scenario_file)
-        gprMax.gprMax.api(scenario_file, write_processed=True)
+        gprMax.gprMax.api(str(scenario_file), write_processed=True)
     except GeneralError as e:
         gprmax_logger.exception("gprMax error during simulation")
     else:
